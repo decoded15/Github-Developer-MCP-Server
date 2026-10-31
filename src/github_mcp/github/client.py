@@ -1,0 +1,30 @@
+import httpx
+
+from github_mcp.config import GITHUB_TOKEN
+
+class GitHubClient:
+    BASE_URL = "https://api.github.com"
+
+    def __init__(self):
+        self.headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+        if GITHUB_TOKEN:
+            self.headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+
+    async def get_repository(self, owner: str, repo: str) -> dict:
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}"
+            )
+
+            response.raise_for_status()
+
+            return response.json()
