@@ -28,3 +28,18 @@ class GitHubClient:
             response.raise_for_status()
 
             return response.json()
+        
+    async def get_languages(self, owner: str, repo: str) -> dict:
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/languages"
+            )
+
+            response.raise_for_status()
+
+            return response.json()
