@@ -183,5 +183,35 @@ async def get_commit_details(
         commit_sha,
     )
 
+@mcp.tool()
+async def list_issues(
+    owner: str,
+    repo: str,
+    state: str = "open",
+    per_page: int = 10,
+) -> list[dict]:
+    """
+    List issues in a GitHub repository.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        state: Issue state - open, closed, or all.
+        per_page: Maximum number of issues to return (1-100).
+    """
+
+    if state not in {"open", "closed", "all"}:
+        raise ValueError("state must be open, closed, or all")
+
+    if not 1 <= per_page <= 100:
+        raise ValueError("per_page must be between 1 and 100")
+
+    return await github.list_issues(
+        owner,
+        repo,
+        state,
+        per_page,
+    )
+
 if __name__ == "__main__":
     mcp.run()

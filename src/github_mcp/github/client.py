@@ -333,3 +333,46 @@ class GitHubClient:
                     for item in files[:30]
                 ],
             }
+    async def list_issues(
+    self,
+    owner: str,
+    repo: str,
+    state: str = "open",
+    per_page: int = 10,
+) -> list[dict]:
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/issues",
+                params={
+                    "state": state,
+                    "per_page": per_page,
+                },
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            return [
+                {
+                    "number": issue["number"],
+                    "title": issue["title"],
+                    "state": issue["state"],
+                    "author": issue["user"]["login"],
+                    "created_at": issue["created_at"],
+                    "updated_at": issue["updated_at"],
+                    "url": issue["html_url"],
+                    "labels": [
+                        label["name"]
+                        for label in issue["labels"]
+                    ],
+                }
+                for issue in data
+                if "pull_request" not in issue
+            ]
