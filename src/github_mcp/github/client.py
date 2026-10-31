@@ -376,3 +376,44 @@ class GitHubClient:
                 for issue in data
                 if "pull_request" not in issue
             ]
+
+    async def get_issue(
+    self,
+    owner: str,
+    repo: str,
+    issue_number: int,
+) -> dict:
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/issues/{issue_number}"
+            )
+
+            response.raise_for_status()
+
+            issue = response.json()
+
+            return {
+                "number": issue["number"],
+                "title": issue["title"],
+                "body": issue["body"],
+                "state": issue["state"],
+                "author": issue["user"]["login"],
+                "assignees": [
+                    user["login"]
+                    for user in issue["assignees"]
+                ],
+                "labels": [
+                    label["name"]
+                    for label in issue["labels"]
+                ],
+                "comments_count": issue["comments"],
+                "created_at": issue["created_at"],
+                "updated_at": issue["updated_at"],
+                "url": issue["html_url"],
+            }

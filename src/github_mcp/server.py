@@ -213,5 +213,29 @@ async def list_issues(
         per_page,
     )
 
+@mcp.tool()
+async def get_issue(
+    owner: str,
+    repo: str,
+    issue_number: int,
+) -> dict:
+    """
+    Retrieve detailed information about a GitHub issue.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        issue_number: GitHub issue number.
+    """
+
+    if issue_number < 1:
+        raise ValueError("issue_number must be positive")
+
+    return await github.get_issue(
+        owner,
+        repo,
+        issue_number,
+    )
+
 if __name__ == "__main__":
     mcp.run()
