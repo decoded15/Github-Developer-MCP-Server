@@ -95,3 +95,50 @@ class GitHubClient:
                 "download_url": data["download_url"],
                 "content": decoded_content,
             }
+
+    async def get_repository_tree(
+    self,
+    owner: str,
+    repo: str,
+    max_entries: int = 200,
+) -> dict:
+
+        # Find the repository's default branch
+        repository = await self.get_repository(owner, repo)
+        branch = repository["default_branch"]
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=30.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/git/trees/{branch}",
+                params={"recursive": "1"},
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+            entries = data.get("tree", [])
+
+            limited_entries = entries[:max_entries]
+
+            return {
+                "repository": f"{owner}/{repo}",
+                "branch": branch,
+                "total_entries": len(entries),
+                "returned_entries": len(limited_entries),
+                "truncated": data.get("truncated", False)
+                or len(entries) > max_entries,
+                "tree": [
+                    {
+                        "path": item["path"],
+                        "type": item["type"],
+                        "size": item.get("size"),
+                        "sha": item["sha"],
+                    }
+                    for item in limited_entries
+                ],
+            }

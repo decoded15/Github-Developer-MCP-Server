@@ -94,5 +94,29 @@ async def get_repository_readme(owner: str, repo: str) -> dict:
     """
     return await github.get_readme(owner, repo)
 
+@mcp.tool()
+async def get_repository_tree(
+    owner: str,
+    repo: str,
+    max_entries: int = 200,
+) -> dict:
+    """
+    Retrieve the recursive directory tree of a GitHub repository.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        max_entries: Maximum number of tree entries to return (1-500).
+    """
+
+    if not 1 <= max_entries <= 500:
+        raise ValueError("max_entries must be between 1 and 500")
+
+    return await github.get_repository_tree(
+        owner,
+        repo,
+        max_entries,
+    )
+
 if __name__ == "__main__":
     mcp.run()
