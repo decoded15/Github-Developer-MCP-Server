@@ -161,5 +161,27 @@ async def get_commits(
         per_page,
     )
 
+@mcp.tool()
+async def get_commit_details(
+    owner: str,
+    repo: str,
+    commit_sha: str,
+) -> dict:
+    """
+    Retrieve detailed information about a GitHub commit,
+    including changed files and additions/deletions.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        commit_sha: SHA of the commit to inspect.
+    """
+
+    return await github.get_commit_details(
+        owner,
+        repo,
+        commit_sha,
+    )
+
 if __name__ == "__main__":
     mcp.run()

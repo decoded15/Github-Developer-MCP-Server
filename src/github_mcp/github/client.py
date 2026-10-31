@@ -281,3 +281,55 @@ class GitHubClient:
                 }
                 for item in data
             ]
+
+    async def get_commit_details(
+    self,
+    owner: str,
+    repo: str,
+    commit_sha: str,
+) -> dict:
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=20.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/commits/{commit_sha}"
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            files = data.get("files", [])
+
+            return {
+                "repository": f"{owner}/{repo}",
+                "sha": data["sha"],
+                "message": data["commit"]["message"],
+                "author": (
+                    data["commit"]["author"]["name"]
+                    if data["commit"].get("author")
+                    else None
+                ),
+                "date": (
+                    data["commit"]["author"]["date"]
+                    if data["commit"].get("author")
+                    else None
+                ),
+                "statistics": data.get("stats", {}),
+                "files_changed": len(files),
+                "files": [
+                    {
+                        "filename": item["filename"],
+                        "status": item["status"],
+                        "additions": item["additions"],
+                        "deletions": item["deletions"],
+                        "changes": item["changes"],
+                        "patch": item.get("patch"),
+                    }
+                    for item in files[:30]
+                ],
+            }
