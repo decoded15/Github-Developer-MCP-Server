@@ -27,65 +27,28 @@ async def collect_evidence(name: str, operation):
             "error": str(error),
         }
 
+
 @mcp.tool()
 async def get_repository_overview(
     owner: str,
     repo: str,
 ) -> dict:
     """
-    Collect technical evidence from a GitHub repository.
+    Generate a compact technical overview of a GitHub repository.
 
-    Includes metadata, README, languages, directory tree,
-    dependency manifests and recent commits.
+    Collects repository metadata, README, languages,
+    directory structure, dependency manifests and recent commits.
 
-    The AI client can use this evidence to generate a
-    detailed technical overview.
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
     """
 
-    metadata, languages, readme, tree, dependencies, commits = (
-        await asyncio.gather(
-            collect_evidence(
-                "metadata",
-                github.get_repository(owner, repo),
-            ),
-            collect_evidence(
-                "languages",
-                github.get_languages(owner, repo),
-            ),
-            collect_evidence(
-                "readme",
-                github.get_readme(owner, repo),
-            ),
-            collect_evidence(
-                "directory_tree",
-                github.get_repository_tree(
-                    owner, repo, max_entries=200
-                ),
-            ),
-            collect_evidence(
-                "dependencies",
-                github.get_dependency_manifests(owner, repo),
-            ),
-            collect_evidence(
-                "recent_commits",
-                github.get_commits(
-                    owner, repo, per_page=10
-                ),
-            ),
-        )
+    return await github.build_repository_overview(
+        owner,
+        repo,
+        max_tree_entries=150,
     )
-
-    return {
-        "repository": f"{owner}/{repo}",
-        "overview_data": {
-            "metadata": metadata,
-            "languages": languages,
-            "readme": readme,
-            "directory_tree": tree,
-            "dependencies": dependencies,
-            "recent_commits": commits,
-        },
-    }
 
 @mcp.tool()
 async def get_repository(owner: str, repo: str) -> dict:

@@ -523,3 +523,289 @@ class GitHubClient:
                     for item in files
                 ],
             }
+
+
+    async def build_repository_overview(
+        self,
+        owner: str,
+        repo: str,
+        max_tree_entries: int = 150,
+    ) -> dict:
+        """Collect compact repository intelligence efficiently."""
+
+        import asyncio
+
+        import base64
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=25.0,
+        ) as client:
+
+            # ------------------------------------------
+            # 1. Fetch metadata ONCE
+            # ------------------------------------------
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}"
+            )
+            response.raise_for_status()
+
+            raw_metadata = response.json()
+
+            branch = raw_metadata["default_branch"]
+
+            metadata = {
+                "name": raw_metadata.get("name"),
+                "full_name": raw_metadata.get("full_name"),
+                "description": raw_metadata.get("description"),
+                "url": raw_metadata.get("html_url"),
+                "default_branch": branch,
+                "primary_language": raw_metadata.get("language"),
+                "stars": raw_metadata.get("stargazers_count"),
+                "forks": raw_metadata.get("forks_count"),
+                "open_issues": raw_metadata.get("open_issues_count"),
+                "created_at": raw_metadata.get("created_at"),
+                "updated_at": raw_metadata.get("updated_at"),
+                "pushed_at": raw_metadata.get("pushed_at"),
+            }
+
+            # ------------------------------------------
+            # 2. Safe request helper
+            # ------------------------------------------
+
+            async def fetch_json(endpoint, params=None):
+                try:
+                    response = await client.get(
+                        endpoint,
+                        params=params,
+                    )
+                    response.raise_for_status()
+
+                    return {
+                        "status": "available",
+                        "data": response.json(),
+                    }
+
+                except Exception as error:
+                    return {
+                        "status": "unavailable",
+                        "error": str(error),
+                    }
+
+            # ------------------------------------------
+            # 3. Fetch independent evidence concurrently
+            # ------------------------------------------
+
+            languages_result, readme_result, tree_result, commits_result = (
+                await asyncio.gather(
+                    fetch_json(
+                        f"/repos/{owner}/{repo}/languages"
+                    ),
+                    fetch_json(
+                        f"/repos/{owner}/{repo}/readme"
+                    ),
+                    fetch_json(
+                        f"/repos/{owner}/{repo}/git/trees/{branch}",
+                        params={"recursive": "1"},
+                    ),
+                    fetch_json(
+                        f"/repos/{owner}/{repo}/commits",
+                        params={
+                            "sha": branch,
+                            "per_page": 5,
+                        },
+                    ),
+                )
+            )
+
+            # ------------------------------------------
+            # 4. Process README
+            # ------------------------------------------
+
+            if readme_result["status"] == "available":
+                try:
+                    readme_data = readme_result["data"]
+
+                    readme_content = base64.b64decode(
+                        readme_data["content"]
+                    ).decode(
+                        "utf-8",
+                        errors="replace",
+                    )
+
+                    readme = {
+                        "status": "available",
+                        "path": readme_data.get("path"),
+                        "content": readme_content[:10000],
+                        "truncated": len(readme_content) > 10000,
+                    }
+
+                except Exception as error:
+                    readme = {
+                        "status": "unavailable",
+                        "error": str(error),
+                    }
+            else:
+                readme = readme_result
+
+            # ------------------------------------------
+            # 5. Process languages
+            # ------------------------------------------
+
+            languages = languages_result
+
+            # ------------------------------------------
+            # 6. Process tree ONCE
+            # ------------------------------------------
+
+            tree = []
+            manifest_paths = []
+            tree_truncated = False
+            total_entries = 0
+
+            supported_manifests = {
+                "requirements.txt",
+                "pyproject.toml",
+                "package.json",
+                "cargo.toml",
+                "go.mod",
+            }
+
+            if tree_result["status"] == "available":
+
+                tree_data = tree_result["data"]
+
+                raw_tree = tree_data.get("tree", [])
+
+                total_entries = len(raw_tree)
+
+                tree_truncated = (
+                    tree_data.get("truncated", False)
+                    or total_entries > max_tree_entries
+                )
+
+                selected_entries = raw_tree[:max_tree_entries]
+
+                tree = [
+                    {
+                        "path": item["path"],
+                        "type": item["type"],
+                    }
+                    for item in selected_entries
+                ]
+
+                manifest_paths = [
+                    item["path"]
+                    for item in raw_tree
+                    if item["type"] == "blob"
+                    and item["path"].split("/")[-1].lower()
+                    in supported_manifests
+                ][:5]
+
+                tree_result = {
+                    "status": "available",
+                    "data": {
+                        "branch": branch,
+                        "total_entries": total_entries,
+                        "returned_entries": len(tree),
+                        "truncated": tree_truncated,
+                        "tree": tree,
+                    },
+                }
+
+            # ------------------------------------------
+            # 7. Fetch dependency manifests concurrently
+            #    Reuse the existing tree and branch.
+            # ------------------------------------------
+
+            async def fetch_manifest(path):
+                try:
+                    response = await client.get(
+                        f"/repos/{owner}/{repo}/contents/{path}",
+                        params={"ref": branch},
+                    )
+                    response.raise_for_status()
+
+                    file_data = response.json()
+
+                    content = base64.b64decode(
+                        file_data["content"]
+                    ).decode(
+                        "utf-8",
+                        errors="replace",
+                    )
+
+                    return {
+                        "path": path,
+                        "content": content[:5000],
+                        "truncated": len(content) > 5000,
+                    }
+
+                except Exception as error:
+                    return {
+                        "path": path,
+                        "error": str(error),
+                    }
+
+            manifests = await asyncio.gather(
+                *[
+                    fetch_manifest(path)
+                    for path in manifest_paths
+                ]
+            )
+
+            dependencies = {
+                "status": "available",
+                "manifests_found": len(manifest_paths),
+                "manifests_returned": len(manifests),
+                "manifests": manifests,
+                "tree_truncated": tree_truncated,
+            }
+
+            # ------------------------------------------
+            # 8. Process recent commits
+            # ------------------------------------------
+
+            if commits_result["status"] == "available":
+
+                commits = [
+                    {
+                        "sha": item.get("sha", "")[:10],
+                        "message": item.get(
+                            "commit", {}
+                        ).get("message", "")[:300],
+                        "author": (
+                            item.get("commit", {})
+                            .get("author", {})
+                            or {}
+                        ).get("name"),
+                        "date": (
+                            item.get("commit", {})
+                            .get("author", {})
+                            or {}
+                        ).get("date"),
+                        "url": item.get("html_url"),
+                    }
+                    for item in commits_result["data"]
+                ]
+
+                commits_result = {
+                    "status": "available",
+                    "data": commits,
+                }
+
+            # ------------------------------------------
+            # 9. Return compact evidence
+            # ------------------------------------------
+
+            return {
+                "repository": f"{owner}/{repo}",
+                "metadata": metadata,
+                "languages": languages,
+                "readme": readme,
+                "directory_tree": tree_result,
+                "dependencies": dependencies,
+                "recent_commits": commits_result,
+            }
