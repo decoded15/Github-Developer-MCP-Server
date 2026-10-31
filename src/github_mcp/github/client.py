@@ -142,3 +142,95 @@ class GitHubClient:
                     for item in limited_entries
                 ],
             }
+    async def get_file_contents(
+    self,
+    owner: str,
+    repo: str,
+    path: str,
+) -> dict:
+
+        repository = await self.get_repository(owner, repo)
+        branch = repository["default_branch"]
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/contents/{path}",
+                params={"ref": branch},
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            if data.get("encoding") != "base64":
+                raise ValueError("Unsupported file encoding")
+
+            content = base64.b64decode(
+                data["content"]
+            ).decode("utf-8", errors="replace")
+
+            return {
+                "name": data["name"],
+                "path": data["path"],
+                "content": content,
+                "size": data["size"],
+                "download_url": data.get("download_url"),
+            }
+    async def get_dependency_manifests(
+    self,
+    owner: str,
+    repo: str,
+) -> dict:
+
+        supported_manifests = {
+            "requirements.txt",
+            "pyproject.toml",
+            "package.json",
+            "cargo.toml",
+            "go.mod",
+        }
+
+        repository_tree = await self.get_repository_tree(
+            owner,
+            repo,
+            max_entries=500,
+        )
+
+        manifest_paths = [
+            item["path"]
+            for item in repository_tree["tree"]
+            if item["type"] == "blob"
+            and item["path"].split("/")[-1].lower()
+            in supported_manifests
+        ]
+
+        manifests = []
+
+        for path in manifest_paths[:10]:
+            try:
+                file_data = await self.get_file_contents(
+                    owner,
+                    repo,
+                    path,
+                )
+
+                manifests.append(file_data)
+
+            except (httpx.HTTPError, ValueError) as error:
+                manifests.append({
+                    "path": path,
+                    "error": str(error),
+                })
+
+        return {
+            "repository": f"{owner}/{repo}",
+            "manifests_found": len(manifest_paths),
+            "manifests_returned": len(manifests),
+            "manifests": manifests,
+            "tree_truncated": repository_tree["truncated"],
+        }

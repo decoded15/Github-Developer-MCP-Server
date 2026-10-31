@@ -118,5 +118,25 @@ async def get_repository_tree(
         max_entries,
     )
 
+@mcp.tool()
+async def get_dependency_manifests(
+    owner: str,
+    repo: str,
+) -> dict:
+    """
+    Find and retrieve supported dependency manifest files
+    from a GitHub repository.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+    """
+
+    return await github.get_dependency_manifests(
+        owner,
+        repo,
+    )
+
+
 if __name__ == "__main__":
     mcp.run()
