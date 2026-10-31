@@ -417,3 +417,109 @@ class GitHubClient:
                 "updated_at": issue["updated_at"],
                 "url": issue["html_url"],
             }
+
+    async def list_pull_requests(
+    self,
+    owner: str,
+    repo: str,
+    state: str = "open",
+    per_page: int = 10,
+) -> list[dict]:
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/pulls",
+                params={
+                    "state": state,
+                    "per_page": per_page,
+                    "sort": "updated",
+                    "direction": "desc",
+                },
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            return [
+                {
+                    "number": pr["number"],
+                    "title": pr["title"],
+                    "author": pr["user"]["login"],
+                    "state": pr["state"],
+                    "source_branch": pr["head"]["ref"],
+                    "target_branch": pr["base"]["ref"],
+                    "draft": pr["draft"],
+                    "created_at": pr["created_at"],
+                    "updated_at": pr["updated_at"],
+                    "url": pr["html_url"],
+                }
+                for pr in data
+            ]
+
+    async def get_pull_request(
+    self,
+    owner: str,
+    repo: str,
+    pull_number: int,
+) -> dict:
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=20.0,
+        ) as client:
+
+            # Fetch PR information
+            response = await client.get(
+                f"/repos/{owner}/{repo}/pulls/{pull_number}"
+            )
+
+            response.raise_for_status()
+
+            pr = response.json()
+
+            # Fetch changed files
+            files_response = await client.get(
+                f"/repos/{owner}/{repo}/pulls/{pull_number}/files",
+                params={"per_page": 30},
+            )
+
+            files_response.raise_for_status()
+
+            files = files_response.json()
+
+            return {
+                "number": pr["number"],
+                "title": pr["title"],
+                "body": pr["body"],
+                "author": pr["user"]["login"],
+                "state": pr["state"],
+                "draft": pr["draft"],
+                "merged": pr["merged"],
+                "source_branch": pr["head"]["ref"],
+                "target_branch": pr["base"]["ref"],
+                "additions": pr["additions"],
+                "deletions": pr["deletions"],
+                "changed_files_count": pr["changed_files"],
+                "mergeable": pr["mergeable"],
+                "created_at": pr["created_at"],
+                "updated_at": pr["updated_at"],
+                "url": pr["html_url"],
+                "files": [
+                    {
+                        "filename": item["filename"],
+                        "status": item["status"],
+                        "additions": item["additions"],
+                        "deletions": item["deletions"],
+                        "changes": item["changes"],
+                        "patch": item.get("patch"),
+                    }
+                    for item in files
+                ],
+            }

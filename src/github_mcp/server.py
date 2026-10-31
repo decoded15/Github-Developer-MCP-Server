@@ -236,6 +236,60 @@ async def get_issue(
         repo,
         issue_number,
     )
+@mcp.tool()
+async def list_pull_requests(
+    owner: str,
+    repo: str,
+    state: str = "open",
+    per_page: int = 10,
+) -> list[dict]:
+    """
+    List pull requests in a GitHub repository.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        state: Pull request state - open, closed, or all.
+        per_page: Maximum number of results (1-100).
+    """
+
+    if state not in {"open", "closed", "all"}:
+        raise ValueError("state must be open, closed, or all")
+
+    if not 1 <= per_page <= 100:
+        raise ValueError("per_page must be between 1 and 100")
+
+    return await github.list_pull_requests(
+        owner,
+        repo,
+        state,
+        per_page,
+    )
+
+@mcp.tool()
+async def get_pull_request(
+    owner: str,
+    repo: str,
+    pull_number: int,
+) -> dict:
+    """
+    Retrieve detailed information about a pull request,
+    including changed files and merge information.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        pull_number: Pull request number.
+    """
+
+    if pull_number < 1:
+        raise ValueError("pull_number must be positive")
+
+    return await github.get_pull_request(
+        owner,
+        repo,
+        pull_number,
+    )
 
 if __name__ == "__main__":
     mcp.run()
