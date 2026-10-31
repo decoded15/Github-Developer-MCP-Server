@@ -1,4 +1,5 @@
 from mcp.server import MCPServer
+import asyncio
 
 from github_mcp.github.client import GitHubClient
 
@@ -7,12 +8,84 @@ mcp = MCPServer("GitHub Developer MCP Server")
 
 github = GitHubClient()
 
+async def collect_evidence(name: str, operation):
+    """
+    Execute one evidence collection operation.
+    Preserve other results if this operation fails.
+    """
+    try:
+        result = await operation
+
+        return {
+            "status": "available",
+            "data": result,
+        }
+
+    except Exception as error:
+        return {
+            "status": "unavailable",
+            "error": str(error),
+        }
 
 @mcp.tool()
-def hello_github_developer(name: str) -> str:
-    """Greet a developer using the GitHub MCP Server."""
-    return f"Hey {name}! Your GitHub MCP Server is running successfully."
+async def get_repository_overview(
+    owner: str,
+    repo: str,
+) -> dict:
+    """
+    Collect technical evidence from a GitHub repository.
 
+    Includes metadata, README, languages, directory tree,
+    dependency manifests and recent commits.
+
+    The AI client can use this evidence to generate a
+    detailed technical overview.
+    """
+
+    metadata, languages, readme, tree, dependencies, commits = (
+        await asyncio.gather(
+            collect_evidence(
+                "metadata",
+                github.get_repository(owner, repo),
+            ),
+            collect_evidence(
+                "languages",
+                github.get_languages(owner, repo),
+            ),
+            collect_evidence(
+                "readme",
+                github.get_readme(owner, repo),
+            ),
+            collect_evidence(
+                "directory_tree",
+                github.get_repository_tree(
+                    owner, repo, max_entries=200
+                ),
+            ),
+            collect_evidence(
+                "dependencies",
+                github.get_dependency_manifests(owner, repo),
+            ),
+            collect_evidence(
+                "recent_commits",
+                github.get_commits(
+                    owner, repo, per_page=10
+                ),
+            ),
+        )
+    )
+
+    return {
+        "repository": f"{owner}/{repo}",
+        "overview_data": {
+            "metadata": metadata,
+            "languages": languages,
+            "readme": readme,
+            "directory_tree": tree,
+            "dependencies": dependencies,
+            "recent_commits": commits,
+        },
+    }
 
 @mcp.tool()
 async def get_repository(owner: str, repo: str) -> dict:
