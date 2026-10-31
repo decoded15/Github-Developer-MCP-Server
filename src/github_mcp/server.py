@@ -49,5 +49,39 @@ async def get_languages(owner: str, repo: str) -> dict:
     """
     return await github.get_languages(owner, repo)
 
+@mcp.tool()
+async def list_repositories(
+    owner: str,
+    per_page: int = 10
+) -> list[dict]:
+    """
+    List recently updated public repositories of a GitHub user.
+
+    Args:
+        owner: GitHub username.
+        per_page: Maximum number of repositories to return (1-100).
+    """
+
+    if not 1 <= per_page <= 100:
+        raise ValueError("per_page must be between 1 and 100")
+
+    repositories = await github.list_repositories(
+        owner,
+        per_page,
+    )
+
+    return [
+        {
+            "name": repo["name"],
+            "full_name": repo["full_name"],
+            "description": repo["description"],
+            "stars": repo["stargazers_count"],
+            "language": repo["language"],
+            "updated_at": repo["updated_at"],
+            "url": repo["html_url"],
+        }
+        for repo in repositories
+    ]
+
 if __name__ == "__main__":
     mcp.run()

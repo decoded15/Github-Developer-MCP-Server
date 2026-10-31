@@ -43,3 +43,27 @@ class GitHubClient:
             response.raise_for_status()
 
             return response.json()
+
+    async def list_repositories(
+        self,
+        owner: str,
+        per_page: int = 10
+    ) -> list[dict]:
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/users/{owner}/repos",
+                params={
+                    "sort": "updated",
+                    "per_page": per_page,
+                },
+            )
+
+            response.raise_for_status()
+
+            return response.json()
