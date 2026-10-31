@@ -83,5 +83,16 @@ async def list_repositories(
         for repo in repositories
     ]
 
+@mcp.tool()
+async def get_repository_readme(owner: str, repo: str) -> dict:
+    """
+    Retrieve and decode the README of a GitHub repository.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+    """
+    return await github.get_readme(owner, repo)
+
 if __name__ == "__main__":
     mcp.run()

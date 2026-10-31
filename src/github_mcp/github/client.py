@@ -1,4 +1,5 @@
 import httpx
+import base64
 
 from github_mcp.config import GITHUB_TOKEN
 
@@ -67,3 +68,30 @@ class GitHubClient:
             response.raise_for_status()
 
             return response.json()
+    async def get_readme(self, owner: str, repo: str) -> dict:
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/readme"
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            encoded_content = data["content"]
+
+            decoded_content = base64.b64decode(
+                encoded_content
+            ).decode("utf-8", errors="replace")
+
+            return {
+                "name": data["name"],
+                "path": data["path"],
+                "download_url": data["download_url"],
+                "content": decoded_content,
+            }
