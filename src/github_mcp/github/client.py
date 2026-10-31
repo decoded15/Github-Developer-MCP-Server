@@ -234,3 +234,50 @@ class GitHubClient:
             "manifests": manifests,
             "tree_truncated": repository_tree["truncated"],
         }
+
+    async def get_commits(
+    self,
+    owner: str,
+    repo: str,
+    per_page: int = 10,
+) -> list[dict]:
+
+        repository = await self.get_repository(owner, repo)
+        branch = repository["default_branch"]
+
+        async with httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers=self.headers,
+            timeout=15.0,
+        ) as client:
+
+            response = await client.get(
+                f"/repos/{owner}/{repo}/commits",
+                params={
+                    "sha": branch,
+                    "per_page": per_page,
+                },
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            return [
+                {
+                    "sha": item["sha"],
+                    "message": item["commit"]["message"],
+                    "author": (
+                        item["commit"]["author"]["name"]
+                        if item["commit"].get("author")
+                        else None
+                    ),
+                    "date": (
+                        item["commit"]["author"]["date"]
+                        if item["commit"].get("author")
+                        else None
+                    ),
+                    "url": item["html_url"],
+                }
+                for item in data
+            ]

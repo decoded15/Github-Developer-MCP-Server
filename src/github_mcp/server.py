@@ -137,6 +137,29 @@ async def get_dependency_manifests(
         repo,
     )
 
+@mcp.tool()
+async def get_commits(
+    owner: str,
+    repo: str,
+    per_page: int = 10,
+) -> list[dict]:
+    """
+    Retrieve recent commits from a GitHub repository.
+
+    Args:
+        owner: GitHub username or organization.
+        repo: Repository name.
+        per_page: Number of commits to retrieve (1-100).
+    """
+
+    if not 1 <= per_page <= 100:
+        raise ValueError("per_page must be between 1 and 100")
+
+    return await github.get_commits(
+        owner,
+        repo,
+        per_page,
+    )
 
 if __name__ == "__main__":
     mcp.run()
