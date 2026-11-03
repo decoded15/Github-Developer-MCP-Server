@@ -1,5 +1,7 @@
 # GitHub Developer MCP Server
 
+[![M8ven Score](https://m8ven.ai/badge/mcp/decoded15-github-developer-mcp-server-fivi36?v=689f9cb4e918e7482c8e887773b69912)](https://m8ven.ai/mcp/decoded15-github-developer-mcp-server-fivi36?s=readme)
+
 A Python-based Model Context Protocol (MCP) server that exposes GitHub repository information and development workflows as tools for AI applications.
 
 ## Overview
